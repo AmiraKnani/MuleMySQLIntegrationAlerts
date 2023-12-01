@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:email="http://www.mulesoft.org/schema/mule/email" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="af9d1af0-a87d-4e4d-836e-e131939bbb97" >
+		<http:listener-connection host="0.0.0.0" port="8060" />
+	</http:listener-config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="82627a10-4ef8-46b9-81bb-6da57fd23829" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="1234" database="logidas" />
+	</db:config>
+	<email:smtp-config name="Email_SMTP" doc:name="Email SMTP" doc:id="672b94b4-8989-4a46-88cd-0af08f5822f7" >
+		<email:smtp-connection host="smtp.gmail.com" port="587" user="amiraknani@gmail.com" password="ifln dbsb lkbg hjhf" >
+			<email:properties >
+				<email:property key="mail.smtp.starttls.enable" value="true" />
+			</email:properties>
+		</email:smtp-connection>
+	</email:smtp-config>
+	<flow name="projectFlow" doc:id="dc15e8f8-9768-4477-868f-cbb2c060fd28" >
+		<http:listener doc:name="Listener" doc:id="9bf6fe46-6ac8-4e92-adb3-86451c4c06ee" config-ref="HTTP_Listener_config" path="/poste?id={id}"/>
+		<set-variable value='#[attributes.queryParams.id as String {format: "string"}]' doc:name="Set Variable" doc:id="34a94ad7-5787-4b6e-a569-9ae7496709c9" variableName="id"/>
+		<scatter-gather doc:name="Scatter-Gather" doc:id="5aaef95a-1825-4a61-a31a-f4bdd272aafe" >
+			<route >
+				<db:select doc:name="Select(AVG)" doc:id="5aabeedf-a60c-4bdc-bd4d-5ddb6c285ff8" config-ref="Database_Config">
+			<db:sql><![CDATA[SELECT AVG(TRS) as OverallAverageTRS FROM TRS;
+
+]]></db:sql>
+		</db:select>
+				<ee:transform doc:name="Transform Message" doc:id="d5c414fe-d534-4356-8094-0cb7a0d86d12" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+    overallAverageTRS: payload[0].OverallAverageTRS default 0
+}
+]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</route>
+			<route >
+				<db:select doc:name="Select By Poste" doc:id="9e3cefac-8477-4936-957c-c2fd4aa8d062" config-ref="Database_Config">
+			<db:sql><![CDATA[SELECT AVG(TRS) as AverageTRS FROM TRS WHERE Poste=:id]]></db:sql>
+					<db:input-parameters ><![CDATA[#[{
+  "id": vars.id
+}]]]></db:input-parameters>
+		</db:select>
+				<ee:transform doc:name="Transform Message" doc:id="d2275a7d-cc20-49f7-8724-79f7e77366a4" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+    averageTRS: payload[0].AverageTRS default 0,
+}
+]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</route>
+		</scatter-gather>
+		<choice doc:name="Choice" doc:id="06446e10-35cb-4f4e-9dfb-4f9adcfa640c" >
+			<when expression='#[payload."1".payload.averageTRS &lt; payload."0".payload.overallAverageTRS]'>
+				<logger level="INFO" doc:name="Logger" doc:id="8bddce25-a06b-4508-b5dc-f93d3c580399" message='"Alert"'/>
+				<email:send doc:name="Send" doc:id="d9e7f5ef-5774-41c7-a009-e469a2738b78" config-ref="Email_SMTP" fromAddress="amiraknani@gmail.com" subject="[Alert]">
+					<email:to-addresses >
+						<email:to-address value="a.knani19065@pi.tn" />
+					</email:to-addresses>
+					<email:body contentType="text/plain">
+						<email:content ><![CDATA[#["Attention,
+
+This message serves as an alert that the overall average Transaction Success Rate (TRS) for the initial data set has exceeded the TRS of the comparative data set"]]]></email:content>
+					</email:body>
+				</email:send>
+			</when>
+			<when expression='#[payload."1".payload.averageTRS &gt; payload."0".payload.overallAverageTRS]'>
+				<logger level="INFO" doc:name="Logger" doc:id="64adc129-2c93-41ef-b5b7-2b4bc36f07b4" message='"Good"'/>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="3402c66a-e0f1-406b-a7c1-154cf7cab7c7" message='"Nothing To Mention"'/>
+			</otherwise>
+		</choice>
+	</flow>
+</mule>
