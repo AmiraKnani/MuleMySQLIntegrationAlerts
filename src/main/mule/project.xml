@@ -14,7 +14,7 @@ http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/em
 		<db:my-sql-connection host="localhost" port="3306" user="root" password="1234" database="logidas" />
 	</db:config>
 	<email:smtp-config name="Email_SMTP" doc:name="Email SMTP" doc:id="672b94b4-8989-4a46-88cd-0af08f5822f7" >
-		<email:smtp-connection host="smtp.gmail.com" port="587" user="amiraknani@gmail.com" password="ifln dbsb lkbg hjhf" >
+		<email:smtp-connection host="smtp.gmail.com" port="587" user="amiraknani@gmail.com" password="XXXXXXXXXXXXXX" >
 			<email:properties >
 				<email:property key="mail.smtp.starttls.enable" value="true" />
 			</email:properties>
